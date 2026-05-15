@@ -1,0 +1,55 @@
+[package]
+name = "carbonhotkey"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/doom-fish/carbonhotkey-rs"
+repository = "https://github.com/doom-fish/carbonhotkey-rs"
+description = "Safe Rust bindings for Carbon's RegisterEventHotKey — register global keyboard shortcuts on macOS"
+authors = ["Per Johansson <per@doom.fish>"]
+keywords = ["hotkey", "shortcut", "keyboard", "macos", "carbon"]
+categories = ["api-bindings", "os::macos-apis"]
+rust-version = "1.76"
+readme = "README.md"
+build = "build.rs"
+include = [
+    "src/**/*",
+    "build.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE-*",
+    "CHANGELOG.md",
+]
+
+[lints.rust]
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+[lib]
+name = "carbonhotkey"
+crate-type = ["lib"]
+
+[dependencies]
+bitflags = "2"
+
+[dev-dependencies]
+regex-lite = "0.1"
+
+[package.metadata.docs.rs]
+all-features = true
+default-target = "aarch64-apple-darwin"
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[[example]]
+name = "01_register_hotkey"
+
+[profile.release]
+debug = "full"
+strip = "none"

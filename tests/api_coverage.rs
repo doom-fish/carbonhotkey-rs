@@ -71,7 +71,10 @@ fn ffi_symbols_exist_in_carbon_header() {
             println!("  - {m}");
         }
     }
-    assert!(missing.is_empty(), "FFI symbols missing from Carbon header: {missing:?}");
+    assert!(
+        missing.is_empty(),
+        "FFI symbols missing from Carbon header: {missing:?}"
+    );
 }
 
 #[test]

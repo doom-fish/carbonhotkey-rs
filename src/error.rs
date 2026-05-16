@@ -11,6 +11,10 @@ pub enum HotkeyError {
     AlreadyRegistered,
     /// `InstallEventHandler` returned non-zero.
     HandlerInstallFailed(i32),
+    /// `RemoveEventHandler` returned non-zero.
+    HandlerRemoveFailed(i32),
+    /// `RunCurrentEventLoop` returned non-zero.
+    EventLoopFailed(i32),
     /// `UnregisterEventHotKey` returned non-zero.
     UnregisterFailed(i32),
 }
@@ -23,6 +27,10 @@ impl fmt::Display for HotkeyError {
             Self::HandlerInstallFailed(s) => {
                 write!(f, "InstallEventHandler failed: OSStatus {s}")
             }
+            Self::HandlerRemoveFailed(s) => {
+                write!(f, "RemoveEventHandler failed: OSStatus {s}")
+            }
+            Self::EventLoopFailed(s) => write!(f, "RunCurrentEventLoop failed: OSStatus {s}"),
             Self::UnregisterFailed(s) => write!(f, "UnregisterEventHotKey failed: OSStatus {s}"),
         }
     }

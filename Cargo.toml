@@ -1,6 +1,6 @@
 [package]
 name = "carbonhotkey"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/carbonhotkey-rs"
@@ -14,11 +14,15 @@ readme = "README.md"
 build = "build.rs"
 include = [
     "src/**/*",
+    "swift-bridge/**/*",
+    "examples/**/*",
+    "tests/**/*",
     "build.rs",
     "Cargo.toml",
     "README.md",
     "LICENSE-*",
     "CHANGELOG.md",
+    "COVERAGE.md",
 ]
 
 [lints.rust]
@@ -31,6 +35,10 @@ cargo = { level = "warn", priority = -1 }
 [lib]
 name = "carbonhotkey"
 crate-type = ["lib"]
+
+[features]
+default = ["raw-ffi"]
+raw-ffi = []
 
 [dependencies]
 bitflags = "2"

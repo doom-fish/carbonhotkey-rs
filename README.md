@@ -1,73 +1,119 @@
 # carbonhotkey
 
-Safe Rust bindings for Carbon's `RegisterEventHotKey` API on macOS — register **global keyboard shortcuts** that fire even when your app isn't focused.
+Safe Rust bindings for Carbon's global hotkey APIs on macOS, built on a Swift bridge over HIToolbox/Events.
 
-> **Status:** experimental. v0.1 ships hotkey registration with press / release callbacks. v0.2 will add per-process exclusivity flags (`kEventHotKeyExclusive`), modifier-only chords, and key-up debouncing.
+The safe surface is split into four logical areas:
 
-Pure C — **zero Swift bridge** (like `cgevents`, `imageio`, `videotoolbox`).
+- `hotkey` — `register`, `register_key`, `register_with_options`, `Hotkey`, `HotKeyOptions`
+- `event_handler` — `install_keyboard_handler`, `EventHandler`, `run_current_event_loop`, `run_event_loop`, `quit_event_loop`
+- `key_code` — `KeyCode` mapping for every `kVK_*` constant in `Events.h`
+- `modifier_flags` — `ModifierFlags` / `Modifier` for Carbon modifier masks
 
-## Why Carbon (in 2026)?
+Raw Carbon FFI remains available behind the `raw-ffi` feature. It stays enabled by default in v0.3.0 for backward compatibility; use `default-features = false` if you only want the safe Swift-backed API.
 
-Carbon's `RegisterEventHotKey` is the only public API for **global hotkeys** on macOS that doesn't require Accessibility permission. It's:
+## Why Carbon?
+
+Carbon's `RegisterEventHotKey` is still the only public macOS API for global hotkeys that does **not** require Accessibility permission.
+
 - ✅ Permission-free (unlike `CGEventTap`)
-- ✅ Lightweight (no run-loop polling)
-- ✅ Still actively supported by Apple in macOS 26
-- ❌ Limited to "modifier + single key" combinations (no chords like Cmd-K-Cmd-K)
-
-For more flexible matching (chord sequences, regex on text, conditional drops), pair with [`cgevents`](https://github.com/doom-fish/cgevents-rs)'s `EventTap`.
+- ✅ Lightweight (no polling)
+- ✅ Available from command-line tools and agents
+- ❌ Limited to `modifier + single key`
 
 ## Quick start
 
 ```rust,no_run
+use std::time::Duration;
+
 use carbonhotkey::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Register Cmd+Shift+A as a global hotkey.
-    // Keep the returned Hotkey alive — Drop unregisters automatically.
-    let _hk = register(0x00 /* A */, Modifier::CMD | Modifier::SHIFT, |edge| {
-        match edge {
-            HotkeyEdge::Pressed  => println!("Cmd+Shift+A pressed!"),
-            HotkeyEdge::Released => println!("Cmd+Shift+A released"),
-        }
-    })?;
+    let hotkey = register_key(
+        KeyCode::ANSI_A,
+        Modifier::CMD | Modifier::SHIFT,
+        |edge| println!("hotkey edge: {edge:?}"),
+    )?;
 
-    // Run the Carbon event loop so callbacks fire. Blocks.
-    run_event_loop();
+    run_current_event_loop(Duration::from_millis(250))?;
+    hotkey.unregister()?;
     Ok(())
 }
 ```
 
-## Keycodes
+## Event handlers
 
-Use the same virtual-keycode space as [`cgevents`](https://github.com/doom-fish/cgevents-rs)'s `Keycode` module:
+If you want to observe the raw hotkey events yourself, install the keyboard event handler directly:
+
 ```rust,no_run
-use carbonhotkey::*;
-let _ = register(0x00, Modifier::CMD, |_| {});  // A
-let _ = register(0x7A, Modifier::empty(), |_| {});  // F1
-let _ = register(0x35, Modifier::CMD | Modifier::OPTION, |_| {});  // ESC
+use std::time::Duration;
+
+use carbonhotkey::prelude::*;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let handler = install_keyboard_handler(|event| {
+        println!("kind={:?} id={} signature=0x{:08X}", event.event_kind(), event.id(), event.signature());
+    })?;
+
+    run_current_event_loop(Duration::from_millis(250))?;
+    handler.remove()?;
+    Ok(())
+}
 ```
 
-## Pipeline composition
+## Key codes and modifiers
 
-```text
-carbonhotkey (global trigger) ──► your action
-        │
-        └──► cgevents::EventTap (full keyboard interception, needs Accessibility)
-        └──► screencapturekit (start recording)
-        └──► foundation-models (run a model on selected text)
+`KeyCode` maps every `kVK_*` constant from `Events.h`, and `ModifierFlags` mirrors Carbon's modifier masks:
+
+```rust
+use carbonhotkey::{KeyCode, Modifier, ModifierFlags};
+
+assert_eq!(KeyCode::from_name("kvk_escape"), Some(KeyCode::ESCAPE));
+assert!(KeyCode::COMMAND.is_modifier_key());
+assert!(ModifierFlags::supported_mask().contains(Modifier::CMD));
+assert!((Modifier::SHIFT | ModifierFlags::RIGHT_OPTION).contains_right_side());
 ```
 
-## Roadmap
+## Exclusive registration
 
-- [x] `register(keycode, modifiers, callback) -> Hotkey`
-- [x] `Modifier` bitflags (CMD/SHIFT/OPTION/CONTROL/CAPS)
-- [x] `HotkeyEdge::{Pressed, Released}` callbacks
-- [x] `run_event_loop` / `quit_event_loop`
-- [x] Auto-unregister via `Drop`
-- [ ] `kEventHotKeyExclusive` option (per-process exclusivity)
-- [ ] Hotkey chord sequences (Cmd-K Cmd-K)
-- [ ] Lookup by combination (`unregister_all_with_keycode(...)`)
-- [ ] Async callback variant
+Carbon exposes `kEventHotKeyExclusive` to request per-process exclusivity. Use `register_with_options` or `register_key_with_options`:
+
+```rust,no_run
+use carbonhotkey::{register_key_with_options, HotKeyOptions, KeyCode, Modifier};
+
+let hotkey = register_key_with_options(
+    KeyCode::F20,
+    Modifier::CMD | Modifier::SHIFT | Modifier::OPTION | Modifier::CONTROL,
+    HotKeyOptions::EXCLUSIVE,
+    |_| {},
+)?;
+# hotkey.unregister()?;
+# Ok::<(), carbonhotkey::HotkeyError>(())
+```
+
+## Raw FFI feature
+
+```toml
+[dependencies]
+carbonhotkey = { version = "0.3", default-features = false }
+```
+
+Enable the legacy raw Carbon FFI surface when you need it:
+
+```toml
+[dependencies]
+carbonhotkey = { version = "0.3", features = ["raw-ffi"] }
+```
+
+## Examples
+
+- `01_register_hotkey` — register and unregister a hotkey through the Swift bridge
+- `02_event_handler_install` — install a keyboard event handler
+- `03_key_code_mapping` — inspect the `KeyCode` mapping helpers
+- `04_modifier_flags` — inspect Carbon modifier masks
+
+## Coverage audit
+
+`COVERAGE.md` tracks the audited Carbon/HIToolbox hotkey slice, including every `kVK_*` constant from `Events.h` and all exposed hotkey/event-handler symbols.
 
 ## License
 

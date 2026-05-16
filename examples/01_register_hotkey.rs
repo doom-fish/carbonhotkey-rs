@@ -1,20 +1,23 @@
-//! Register Cmd+Shift+T as a global hotkey. The callback prints when
-//! pressed, even if focus is on a completely different app.
+//! Register Cmd+Shift+T as a global hotkey for a short sample window.
 //!
 //! Run: `cargo run --example 01_register_hotkey`
-//!
-//! Press Ctrl-C to exit.
+
+use std::time::Duration;
 
 use carbonhotkey::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _hk = register(0x11 /* T */, Modifier::CMD | Modifier::SHIFT, |edge| {
-        match edge {
+    let hotkey = register_key(
+        KeyCode::ANSI_T,
+        Modifier::CMD | Modifier::SHIFT,
+        |edge| match edge {
             HotkeyEdge::Pressed => println!("Cmd+Shift+T pressed"),
             HotkeyEdge::Released => println!("Cmd+Shift+T released"),
-        }
-    })?;
-    println!("Listening for Cmd+Shift+T globally. Press Ctrl-C to exit.");
-    run_event_loop();
+        },
+    )?;
+
+    println!("Registered Cmd+Shift+T as hotkey id {}.", hotkey.id());
+    run_current_event_loop(Duration::from_millis(10))?;
+    hotkey.unregister()?;
     Ok(())
 }

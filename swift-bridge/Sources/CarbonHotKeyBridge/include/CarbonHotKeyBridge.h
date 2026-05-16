@@ -1,0 +1,3 @@
+#ifndef CARBON_HOTKEY_BRIDGE_H
+#define CARBON_HOTKEY_BRIDGE_H
+#endif

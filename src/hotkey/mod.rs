@@ -1,23 +1,27 @@
 //! Global keyboard hotkey registration via Carbon's `RegisterEventHotKey`.
 
 use core::ffi::c_void;
-use core::ptr;
+use core::ptr::NonNull;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
+use crate::bridge_ffi;
 use crate::error::HotkeyError;
-use crate::ffi;
+use crate::event_handler::{self, HotKeyEventKind};
+use crate::key_code::KeyCode;
+use crate::modifier_flags::ModifierFlags;
+
+const VENDOR_SIGNATURE: u32 = 0x646f_6f6d;
+const EVENT_HOTKEY_EXISTS_ERR: i32 = -9878;
+
+type Callback = dyn Fn(HotkeyEdge) + Send + Sync + 'static;
 
 bitflags::bitflags! {
-    /// Modifier mask. Carbon-style — these constants match Apple's
-    /// `cmdKey`, `shiftKey`, `optionKey`, `controlKey`, etc.
+    /// Additional Carbon hotkey-registration options.
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-    pub struct Modifier: u32 {
-        const CMD     = ffi::cmdKey;
-        const SHIFT   = ffi::shiftKey;
-        const OPTION  = ffi::optionKey;
-        const CONTROL = ffi::controlKey;
-        const CAPS    = ffi::alphaLock;
+    pub struct HotKeyOptions: u32 {
+        /// Request per-process exclusive registration.
+        const EXCLUSIVE = 1 << 0;
     }
 }
 
@@ -30,7 +34,7 @@ pub enum HotkeyEdge {
 
 /// One registered hotkey. Drops the registration when this value drops.
 pub struct Hotkey {
-    raw: ffi::EventHotKeyRef,
+    handle: Option<NonNull<c_void>>,
     id: u32,
 }
 
@@ -39,225 +43,183 @@ unsafe impl Sync for Hotkey {}
 
 impl Drop for Hotkey {
     fn drop(&mut self) {
-        if !self.raw.is_null() {
-            unsafe { ffi::UnregisterEventHotKey(self.raw) };
-            self.raw = ptr::null_mut();
+        if let Some(handle) = self.handle.take() {
+            unsafe { bridge_ffi::carbonhotkey_hotkey_release(handle.as_ptr()) };
         }
-        callback_table().lock().unwrap().remove(&self.id);
+        lock_callback_table().remove(&self.id);
     }
 }
 
 impl Hotkey {
-    /// The internal hotkey id Apple is using to identify this binding.
-    /// Useful for diagnostics; otherwise opaque.
+    /// The internal hotkey identifier used by Carbon.
     #[must_use]
     pub const fn id(&self) -> u32 {
         self.id
     }
 
-    /// Unregister the hotkey immediately (drops `self`). Identical
-    /// effect to letting the value go out of scope — provided for
-    /// callers who want explicit control over the registration
-    /// lifecycle without keeping a binding around.
+    /// Unregister the hotkey immediately.
     ///
     /// # Errors
     ///
-    /// Returns [`HotkeyError::UnregisterFailed`] only if Apple's
-    /// `UnregisterEventHotKey` fails (extremely rare).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal callback-table mutex is poisoned (only
-    /// possible if a previous callback panicked while holding it).
+    /// Returns [`HotkeyError::UnregisterFailed`] if Carbon refuses to
+    /// unregister the hotkey.
     pub fn unregister(mut self) -> Result<(), HotkeyError> {
-        if !self.raw.is_null() {
-            let status = unsafe { ffi::UnregisterEventHotKey(self.raw) };
-            self.raw = ptr::null_mut();
-            callback_table().lock().unwrap().remove(&self.id);
-            // Forget Self so Drop doesn't run UnregisterEventHotKey again.
-            core::mem::forget(self);
-            if status != 0 {
-                return Err(HotkeyError::UnregisterFailed(status));
-            }
+        let status = self.handle.take().map_or(0, |handle| {
+            let status = unsafe { bridge_ffi::carbonhotkey_hotkey_unregister(handle.as_ptr()) };
+            unsafe { bridge_ffi::carbonhotkey_hotkey_release(handle.as_ptr()) };
+            status
+        });
+
+        lock_callback_table().remove(&self.id);
+        core::mem::forget(self);
+
+        if status != 0 {
+            return Err(HotkeyError::UnregisterFailed(status));
         }
         Ok(())
     }
 }
 
-type Callback = Box<dyn Fn(HotkeyEdge) + Send + Sync + 'static>;
-
 fn callback_table() -> &'static Mutex<HashMap<u32, Arc<Callback>>> {
-    static T: OnceLock<Mutex<HashMap<u32, Arc<Callback>>>> = OnceLock::new();
-    T.get_or_init(|| Mutex::new(HashMap::new()))
+    static TABLE: OnceLock<Mutex<HashMap<u32, Arc<Callback>>>> = OnceLock::new();
+    TABLE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn lock_callback_table() -> MutexGuard<'static, HashMap<u32, Arc<Callback>>> {
+    match callback_table().lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
 }
 
 fn next_id() -> u32 {
     use std::sync::atomic::{AtomicU32, Ordering};
-    static NEXT: AtomicU32 = AtomicU32::new(1);
-    NEXT.fetch_add(1, Ordering::SeqCst)
-}
 
-unsafe extern "C" fn handler(
-    _call_ref: ffi::EventHandlerCallRef,
-    event: ffi::EventRef,
-    _user: *mut c_void,
-) -> ffi::OSStatus {
-    let kind = unsafe { ffi::GetEventKind(event) };
-    let edge = if kind == ffi::kEventHotKeyPressed {
-        HotkeyEdge::Pressed
-    } else if kind == ffi::kEventHotKeyReleased {
-        HotkeyEdge::Released
-    } else {
-        return 0;
-    };
-    let mut hkid = ffi::EventHotKeyID {
-        signature: 0,
-        id: 0,
-    };
-    let mut actual_size: ffi::ByteCount = 0;
-    let status = unsafe {
-        ffi::GetEventParameter(
-            event,
-            ffi::kEventParamDirectObject,
-            ffi::typeEventHotKeyID,
-            ptr::null_mut(),
-            core::mem::size_of::<ffi::EventHotKeyID>() as ffi::ByteCount,
-            &mut actual_size,
-            ptr::from_mut(&mut hkid).cast(),
-        )
-    };
-    if status != 0 {
-        return status;
-    }
-    let cb = {
-        let table = callback_table().lock().unwrap();
-        table.get(&hkid.id).cloned()
-    };
-    if let Some(cb) = cb {
-        cb(edge);
-    }
-    0
+    static NEXT_ID: AtomicU32 = AtomicU32::new(1);
+    NEXT_ID.fetch_add(1, Ordering::SeqCst)
 }
 
 fn install_handler_once() -> Result<(), HotkeyError> {
-    static INSTALLED: OnceLock<Result<(), i32>> = OnceLock::new();
-    let result = INSTALLED.get_or_init(|| {
-        let types = [
-            ffi::EventTypeSpec {
-                eventClass: ffi::kEventClassKeyboard,
-                eventKind: ffi::kEventHotKeyPressed,
-            },
-            ffi::EventTypeSpec {
-                eventClass: ffi::kEventClassKeyboard,
-                eventKind: ffi::kEventHotKeyReleased,
-            },
-        ];
-        let mut handler_ref: ffi::EventHandlerRef = ptr::null_mut();
-        let status = unsafe {
-            ffi::InstallEventHandler(
-                ffi::GetApplicationEventTarget(),
-                handler,
-                types.len() as ffi::ItemCount,
-                types.as_ptr(),
-                ptr::null_mut(),
-                &mut handler_ref,
-            )
-        };
-        if status == 0 {
-            Ok(())
-        } else {
-            Err(status)
-        }
-    });
-    match result {
-        Ok(()) => Ok(()),
-        Err(s) => Err(HotkeyError::HandlerInstallFailed(*s)),
-    }
+    static HANDLER: OnceLock<Result<usize, HotkeyError>> = OnceLock::new();
+
+    HANDLER
+        .get_or_init(|| {
+            event_handler::install_keyboard_handler(|event| {
+                let edge = match event.event_kind() {
+                    HotKeyEventKind::Pressed => HotkeyEdge::Pressed,
+                    HotKeyEventKind::Released => HotkeyEdge::Released,
+                };
+
+                let callback = { lock_callback_table().get(&event.id()).cloned() };
+
+                if let Some(callback) = callback {
+                    callback(edge);
+                }
+            })
+            .map(|handler| Box::into_raw(Box::new(handler)) as usize)
+        })
+        .clone()
+        .map(|_| ())
 }
 
-/// Register a global hotkey. The callback fires whenever the user presses
-/// the combination, even if your app isn't focused.
-///
-/// `keycode` uses the same virtual-keycode space as `CGEvent` (see the
-/// `cgevents` crate's `Keycode` module — `Keycode::A`, `Keycode::F1`, etc.).
-///
-/// The returned [`Hotkey`] guard unregisters the hotkey when dropped.
+/// Register a global hotkey using a raw Carbon key code.
 ///
 /// # Errors
 ///
-/// * [`HotkeyError::HandlerInstallFailed`] — installing the global event
-///   handler failed (only happens once per process).
-/// * [`HotkeyError::AlreadyRegistered`] — same hotkey is already
-///   registered by this process or by another with `kEventHotKeyExclusive`.
-/// * [`HotkeyError::RegisterFailed`] — generic Carbon failure.
+/// * [`HotkeyError::HandlerInstallFailed`] if the shared keyboard event
+///   handler could not be installed.
+/// * [`HotkeyError::AlreadyRegistered`] if the same hotkey already exists.
+/// * [`HotkeyError::RegisterFailed`] for other Carbon failures.
+pub fn register<F>(
+    keycode: u16,
+    modifiers: ModifierFlags,
+    callback: F,
+) -> Result<Hotkey, HotkeyError>
+where
+    F: Fn(HotkeyEdge) + Send + Sync + 'static,
+{
+    register_with_options(keycode, modifiers, HotKeyOptions::default(), callback)
+}
+
+/// Register a global hotkey using a typed [`KeyCode`].
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the internal callback table mutex is poisoned (only possible
-/// if a previous callback panicked while holding it).
+/// Mirrors [`register`].
+pub fn register_key<F>(
+    keycode: KeyCode,
+    modifiers: ModifierFlags,
+    callback: F,
+) -> Result<Hotkey, HotkeyError>
+where
+    F: Fn(HotkeyEdge) + Send + Sync + 'static,
+{
+    register(keycode.raw(), modifiers, callback)
+}
+
+/// Register a global hotkey with explicit Carbon options.
 ///
-/// # Examples
+/// # Errors
 ///
-/// ```rust,no_run
-/// use carbonhotkey::{register, Modifier, HotkeyEdge};
-///
-/// let _hk = register(0x00 /* A */, Modifier::CMD | Modifier::SHIFT, |edge| {
-///     match edge {
-///         HotkeyEdge::Pressed  => println!("pressed!"),
-///         HotkeyEdge::Released => println!("released!"),
-///     }
-/// })?;
-///
-/// // Run your app's event loop here so the callback fires.
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
-pub fn register<F>(keycode: u16, modifiers: Modifier, callback: F) -> Result<Hotkey, HotkeyError>
+/// * [`HotkeyError::HandlerInstallFailed`] if the shared keyboard event
+///   handler could not be installed.
+/// * [`HotkeyError::AlreadyRegistered`] if the same hotkey already exists.
+/// * [`HotkeyError::RegisterFailed`] for other Carbon failures.
+pub fn register_with_options<F>(
+    keycode: u16,
+    modifiers: ModifierFlags,
+    options: HotKeyOptions,
+    callback: F,
+) -> Result<Hotkey, HotkeyError>
 where
     F: Fn(HotkeyEdge) + Send + Sync + 'static,
 {
     install_handler_once()?;
 
     let id = next_id();
-    callback_table()
-        .lock()
-        .unwrap()
-        .insert(id, Arc::new(Box::new(callback)));
+    lock_callback_table().insert(id, Arc::new(callback));
 
-    let hkid = ffi::EventHotKeyID {
-        signature: 0x646f_6f6d, // 'doom' - doom-fish vendor signature
-        id,
-    };
-    let mut raw: ffi::EventHotKeyRef = ptr::null_mut();
+    let mut handle = core::ptr::null_mut();
     let status = unsafe {
-        ffi::RegisterEventHotKey(
+        bridge_ffi::carbonhotkey_hotkey_register(
             u32::from(keycode),
             modifiers.bits(),
-            hkid,
-            ffi::GetApplicationEventTarget(),
-            0,
-            &mut raw,
+            VENDOR_SIGNATURE,
+            id,
+            options.bits(),
+            &mut handle,
         )
     };
+
     if status != 0 {
-        callback_table().lock().unwrap().remove(&id);
-        return Err(if status == -9878 {
+        lock_callback_table().remove(&id);
+        return Err(if status == EVENT_HOTKEY_EXISTS_ERR {
             HotkeyError::AlreadyRegistered
         } else {
             HotkeyError::RegisterFailed(status)
         });
     }
-    Ok(Hotkey { raw, id })
+
+    let handle = NonNull::new(handle).ok_or(HotkeyError::RegisterFailed(-50))?;
+    Ok(Hotkey {
+        handle: Some(handle),
+        id: unsafe { bridge_ffi::carbonhotkey_hotkey_id(handle.as_ptr()) },
+    })
 }
 
-/// Run Carbon's application event loop forever (or until
-/// [`quit_event_loop`] is called from another thread).
+/// Register a global hotkey with explicit Carbon options and a typed [`KeyCode`].
 ///
-/// Hotkey callbacks fire from this loop's thread.
-pub fn run_event_loop() {
-    unsafe { ffi::RunApplicationEventLoop() };
-}
-
-/// Stop a running event loop. Call from another thread.
-pub fn quit_event_loop() {
-    unsafe { ffi::QuitApplicationEventLoop() };
+/// # Errors
+///
+/// Mirrors [`register_with_options`].
+pub fn register_key_with_options<F>(
+    keycode: KeyCode,
+    modifiers: ModifierFlags,
+    options: HotKeyOptions,
+    callback: F,
+) -> Result<Hotkey, HotkeyError>
+where
+    F: Fn(HotkeyEdge) + Send + Sync + 'static,
+{
+    register_with_options(keycode.raw(), modifiers, options, callback)
 }

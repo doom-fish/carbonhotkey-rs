@@ -1,8 +1,14 @@
-//! Raw FFI declarations for Carbon's `RegisterEventHotKey` API.
+//! Raw Carbon FFI declarations for the hotkey/event-handler slice.
 //!
-//! Pure C — no Swift bridge. Linked against `Carbon` + `CoreFoundation`.
+//! This module is gated behind the crate's `raw-ffi` feature. The safe
+//! API uses the Swift bridge instead.
 
-#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, missing_docs)]
+#![allow(
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    missing_docs
+)]
 
 use core::ffi::c_void;
 
@@ -40,19 +46,30 @@ pub struct EventTypeSpec {
 pub const kEventClassKeyboard: OSType = 0x6b65_7962; // 'keyb'
 pub const kEventHotKeyPressed: UInt32 = 5;
 pub const kEventHotKeyReleased: UInt32 = 6;
+pub const kEventHotKeyExclusive: OptionBits = 1 << 0;
+pub const eventHotKeyExistsErr: OSStatus = -9878;
 
 pub const kEventParamDirectObject: EventParamName = 0x2d2d_2d2d; // '----'
 pub const typeEventHotKeyID: EventParamType = 0x686b_6964; // 'hkid'
 
 // Carbon modifier masks
-pub const cmdKey: UInt32 = 1 << 8;
-pub const shiftKey: UInt32 = 1 << 9;
-pub const alphaLock: UInt32 = 1 << 10;
-pub const optionKey: UInt32 = 1 << 11;
-pub const controlKey: UInt32 = 1 << 12;
-pub const rightShiftKey: UInt32 = 1 << 13;
-pub const rightOptionKey: UInt32 = 1 << 14;
-pub const rightControlKey: UInt32 = 1 << 15;
+pub const cmdKeyBit: UInt32 = 8;
+pub const shiftKeyBit: UInt32 = 9;
+pub const alphaLockBit: UInt32 = 10;
+pub const optionKeyBit: UInt32 = 11;
+pub const controlKeyBit: UInt32 = 12;
+pub const rightShiftKeyBit: UInt32 = 13;
+pub const rightOptionKeyBit: UInt32 = 14;
+pub const rightControlKeyBit: UInt32 = 15;
+
+pub const cmdKey: UInt32 = 1 << cmdKeyBit;
+pub const shiftKey: UInt32 = 1 << shiftKeyBit;
+pub const alphaLock: UInt32 = 1 << alphaLockBit;
+pub const optionKey: UInt32 = 1 << optionKeyBit;
+pub const controlKey: UInt32 = 1 << controlKeyBit;
+pub const rightShiftKey: UInt32 = 1 << rightShiftKeyBit;
+pub const rightOptionKey: UInt32 = 1 << rightOptionKeyBit;
+pub const rightControlKey: UInt32 = 1 << rightControlKeyBit;
 
 pub type EventHandlerProcPtr = unsafe extern "C" fn(
     in_handler_call_ref: EventHandlerCallRef,

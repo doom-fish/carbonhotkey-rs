@@ -47,6 +47,43 @@ impl Drop for Hotkey {
     }
 }
 
+impl Hotkey {
+    /// The internal hotkey id Apple is using to identify this binding.
+    /// Useful for diagnostics; otherwise opaque.
+    #[must_use]
+    pub const fn id(&self) -> u32 {
+        self.id
+    }
+
+    /// Unregister the hotkey immediately (drops `self`). Identical
+    /// effect to letting the value go out of scope — provided for
+    /// callers who want explicit control over the registration
+    /// lifecycle without keeping a binding around.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HotkeyError::UnregisterFailed`] only if Apple's
+    /// `UnregisterEventHotKey` fails (extremely rare).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal callback-table mutex is poisoned (only
+    /// possible if a previous callback panicked while holding it).
+    pub fn unregister(mut self) -> Result<(), HotkeyError> {
+        if !self.raw.is_null() {
+            let status = unsafe { ffi::UnregisterEventHotKey(self.raw) };
+            self.raw = ptr::null_mut();
+            callback_table().lock().unwrap().remove(&self.id);
+            // Forget Self so Drop doesn't run UnregisterEventHotKey again.
+            core::mem::forget(self);
+            if status != 0 {
+                return Err(HotkeyError::UnregisterFailed(status));
+            }
+        }
+        Ok(())
+    }
+}
+
 type Callback = Box<dyn Fn(HotkeyEdge) + Send + Sync + 'static>;
 
 fn callback_table() -> &'static Mutex<HashMap<u32, Arc<Callback>>> {

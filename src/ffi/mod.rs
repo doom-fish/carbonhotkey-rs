@@ -46,6 +46,7 @@ pub struct EventTypeSpec {
 pub const kEventClassKeyboard: OSType = 0x6b65_7962; // 'keyb'
 pub const kEventHotKeyPressed: UInt32 = 5;
 pub const kEventHotKeyReleased: UInt32 = 6;
+pub const kEventHotKeyNoOptions: OptionBits = 0;
 pub const kEventHotKeyExclusive: OptionBits = 1 << 0;
 pub const eventHotKeyExistsErr: OSStatus = -9878;
 

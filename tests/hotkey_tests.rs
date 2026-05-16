@@ -34,9 +34,21 @@ fn reserve_available_hotkey(options: HotKeyOptions) -> (carbonhotkey::Hotkey, Ke
 
 #[test]
 fn register_and_unregister_hotkey() {
-    let (hotkey, _, _) = reserve_available_hotkey(HotKeyOptions::default());
+    let (hotkey, _, _) = reserve_available_hotkey(HotKeyOptions::NO_OPTIONS);
     assert!(hotkey.id() > 0);
     hotkey.unregister().expect("unregister hotkey");
+}
+
+#[test]
+fn no_options_constant_matches_default() {
+    assert!(HotKeyOptions::NO_OPTIONS.is_empty());
+    assert_eq!(HotKeyOptions::NO_OPTIONS, HotKeyOptions::default());
+
+    #[cfg(feature = "raw-ffi")]
+    assert_eq!(
+        carbonhotkey::ffi::kEventHotKeyNoOptions,
+        HotKeyOptions::NO_OPTIONS.bits()
+    );
 }
 
 #[test]

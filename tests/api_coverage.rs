@@ -84,6 +84,7 @@ fn known_constants_present() {
         "kEventClassKeyboard",
         "kEventHotKeyPressed",
         "kEventHotKeyReleased",
+        "kEventHotKeyNoOptions",
         "kEventParamDirectObject",
         "typeEventHotKeyID",
     ] {

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.1] - 2026-05-16
+
+### Added
+
+- `HotKeyOptions::NO_OPTIONS` and `ffi::kEventHotKeyNoOptions`, giving the safe and raw APIs a named mirror of Carbon's default hotkey-registration option.
+
+### Changed
+
+- `COVERAGE_AUDIT.md` now reports 100% coverage for the audited Carbon hotkey slice.
+
 ## [0.3.0] - 2026-05-16
 
 ### Added

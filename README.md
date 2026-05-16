@@ -9,7 +9,7 @@ The safe surface is split into four logical areas:
 - `key_code` — `KeyCode` mapping for every `kVK_*` constant in `Events.h`
 - `modifier_flags` — `ModifierFlags` / `Modifier` for Carbon modifier masks
 
-Raw Carbon FFI remains available behind the `raw-ffi` feature. It stays enabled by default in v0.3.0 for backward compatibility; use `default-features = false` if you only want the safe Swift-backed API.
+Raw Carbon FFI remains available behind the `raw-ffi` feature. It stays enabled by default in v0.3.1 for backward compatibility; use `default-features = false` if you only want the safe Swift-backed API.
 
 ## Why Carbon?
 
@@ -73,9 +73,9 @@ assert!(ModifierFlags::supported_mask().contains(Modifier::CMD));
 assert!((Modifier::SHIFT | ModifierFlags::RIGHT_OPTION).contains_right_side());
 ```
 
-## Exclusive registration
+## Explicit hotkey options
 
-Carbon exposes `kEventHotKeyExclusive` to request per-process exclusivity. Use `register_with_options` or `register_key_with_options`:
+Carbon exposes `kEventHotKeyNoOptions` for the default behavior and `kEventHotKeyExclusive` for per-process exclusivity. Use `register_with_options` or `register_key_with_options` when you want to pick the option explicitly:
 
 ```rust,no_run
 use carbonhotkey::{register_key_with_options, HotKeyOptions, KeyCode, Modifier};
@@ -89,6 +89,8 @@ let hotkey = register_key_with_options(
 # hotkey.unregister()?;
 # Ok::<(), carbonhotkey::HotkeyError>(())
 ```
+
+`register` and `register_key` are thin wrappers over `HotKeyOptions::NO_OPTIONS`.
 
 ## Raw FFI feature
 

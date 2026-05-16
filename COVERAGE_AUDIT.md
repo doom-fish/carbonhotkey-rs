@@ -3,10 +3,10 @@
 Focused scope only: every `kVK_*` constant in `Events.h`, plus the `RegisterEventHotKey` / `EventTypeSpec` hotkey slice from `CarbonEvents.h` (including `CarbonEventsCore.h` entries that `CarbonEvents.h` re-exports). This is **not** a full HIToolbox audit.
 
 SDK_PUBLIC_SYMBOLS: 139
-VERIFIED: 138
-GAPS: 1
+VERIFIED: 139
+GAPS: 0
 EXEMPT: 0
-COVERAGE_PCT: 99.28%
+COVERAGE_PCT: 100.00%
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
@@ -19,6 +19,7 @@ COVERAGE_PCT: 99.28%
 | `kEventHotKeyPressed` | enum constant | `CarbonEvents.h` | `ffi::kEventHotKeyPressed`; safe `HotKeyEventKind::Pressed` |
 | `kEventHotKeyReleased` | enum constant | `CarbonEvents.h` | `ffi::kEventHotKeyReleased`; safe `HotKeyEventKind::Released` |
 | `kEventHotKeyExclusive` | enum constant | `CarbonEvents.h` | `ffi::kEventHotKeyExclusive`; safe `HotKeyOptions::EXCLUSIVE` |
+| `kEventHotKeyNoOptions` | enum constant | `CarbonEvents.h` | `ffi::kEventHotKeyNoOptions`; safe `HotKeyOptions::NO_OPTIONS` |
 | `kEventParamDirectObject` | enum constant | `CarbonEventsCore.h` | `ffi::kEventParamDirectObject` |
 | `typeEventHotKeyID` | enum constant | `CarbonEvents.h` | `ffi::typeEventHotKeyID` |
 | `GetApplicationEventTarget` | function | `CarbonEvents.h` | `ffi::GetApplicationEventTarget`; safe registration/handler helpers always target it |
@@ -153,7 +154,7 @@ COVERAGE_PCT: 99.28%
 ## 🔴 GAPS
 | Symbol | Kind | Header | Notes |
 | --- | --- | --- | --- |
-| `kEventHotKeyNoOptions` | enum constant | `CarbonEvents.h` | Represented only implicitly via `HotKeyOptions::default()` / `HotKeyOptions::empty()` and raw `0`; the crate exposes no public named mirror of Apple's constant. |
+| — | — | — | None. |
 
 ## ⏭️ EXEMPT
 | Symbol | Kind | Header | Reason | SDK attribute |

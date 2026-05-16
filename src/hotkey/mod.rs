@@ -20,6 +20,8 @@ bitflags::bitflags! {
     /// Additional Carbon hotkey-registration options.
     #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
     pub struct HotKeyOptions: u32 {
+        /// Mirror Carbon's `kEventHotKeyNoOptions` constant.
+        const NO_OPTIONS = 0;
         /// Request per-process exclusive registration.
         const EXCLUSIVE = 1 << 0;
     }
@@ -138,7 +140,7 @@ pub fn register<F>(
 where
     F: Fn(HotkeyEdge) + Send + Sync + 'static,
 {
-    register_with_options(keycode, modifiers, HotKeyOptions::default(), callback)
+    register_with_options(keycode, modifiers, HotKeyOptions::NO_OPTIONS, callback)
 }
 
 /// Register a global hotkey using a typed [`KeyCode`].

@@ -19,6 +19,7 @@ Audited headers:
 | --- | --- | --- | --- | --- |
 | CarbonEvents.h | `EventHotKeyID` | ✅ implemented | `ffi::EventHotKeyID`, `Hotkey` | bridged through `HotKey.swift` |
 | CarbonEvents.h | `EventHotKeyRef` | ✅ implemented | `ffi::EventHotKeyRef`, `Hotkey` | owned by the Swift handle |
+| CarbonEvents.h | `kEventHotKeyNoOptions` | ✅ implemented | `HotKeyOptions::NO_OPTIONS`, `ffi::kEventHotKeyNoOptions` | named mirror of Carbon's default registration mode |
 | CarbonEvents.h | `kEventHotKeyExclusive` | ✅ implemented | `HotKeyOptions::EXCLUSIVE`, `ffi::kEventHotKeyExclusive` | exposed in safe and raw surfaces |
 | CarbonEvents.h | `eventHotKeyExistsErr` | ✅ implemented | `HotkeyError::AlreadyRegistered`, `ffi::eventHotKeyExistsErr` | maps exclusive conflicts to a Rust enum |
 | CarbonEvents.h | `RegisterEventHotKey` | ✅ implemented | `register`, `register_key`, `register_with_options`, `register_key_with_options` | invoked via the Swift bridge |

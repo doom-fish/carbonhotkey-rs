@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1] - 2026-05-17
+
+### Fixed
+
+- `Hotkey::drop()` now calls `carbonhotkey_hotkey_unregister()` before `carbonhotkey_hotkey_release()` to properly clean up process-global handler slots, preventing handler leaks.
+- `EventHandler::drop()` now calls `carbonhotkey_event_handler_remove()` before `carbonhotkey_event_handler_release()` to properly clean up process-global event handlers, preventing handler leaks.
+
 ## [0.4.0] - 2026-05-16
 
 ### Added

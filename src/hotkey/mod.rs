@@ -46,7 +46,10 @@ unsafe impl Sync for Hotkey {}
 impl Drop for Hotkey {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
-            unsafe { bridge_ffi::carbonhotkey_hotkey_release(handle.as_ptr()) };
+            unsafe {
+                let _ = bridge_ffi::carbonhotkey_hotkey_unregister(handle.as_ptr());
+                bridge_ffi::carbonhotkey_hotkey_release(handle.as_ptr());
+            }
         }
         lock_callback_table().remove(&self.id);
     }

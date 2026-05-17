@@ -122,7 +122,10 @@ unsafe extern "C" fn keyboard_callback_trampoline(
 impl Drop for EventHandler {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
-            unsafe { bridge_ffi::carbonhotkey_event_handler_release(handle.as_ptr()) };
+            unsafe {
+                let _ = bridge_ffi::carbonhotkey_event_handler_remove(handle.as_ptr());
+                bridge_ffi::carbonhotkey_event_handler_release(handle.as_ptr());
+            }
         }
         if let Some(callback_state) = self.callback_state.take() {
             unsafe { drop(Box::from_raw(callback_state.as_ptr())) };

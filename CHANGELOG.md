@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0] - 2026-05-16
+
+### Added
+
+- **Tier-2 Async API:** New `async_api` module (gated by `async` feature) providing executor-agnostic async streams via `doom_fish_utils::stream::BoundedAsyncStream<T>`.
+- `HotKeyEventStream` — async stream of multiplexed hotkey events (both press and release), backed by a single global event handler.
+- `StreamHotKeyEvent` — event type carrying hotkey ID, event kind, and metadata.
+- `subscribe_hotkey_stream()` constructor for creating event streams with configurable buffer capacity.
+- Example `02_async_hotkey_stream.rs` demonstrating pollster integration and multi-hotkey listening.
+- Test suite `async_stream_tests.rs` covering stream creation, event properties, and Drop semantics.
+
+### Changed
+
+- `Cargo.toml` now depends on `doom-fish-utils` (with `async` feature).
+- Dev-dependencies now include `pollster = "0.3"` for example support.
+
 ## [0.3.1] - 2026-05-16
 
 ### Added

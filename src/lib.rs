@@ -11,6 +11,10 @@
 
 mod bridge_ffi;
 
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+pub mod async_api;
+
 pub mod error;
 pub mod event_handler;
 #[cfg(feature = "raw-ffi")]

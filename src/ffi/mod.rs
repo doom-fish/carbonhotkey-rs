@@ -12,8 +12,7 @@
 
 use core::ffi::c_void;
 
-pub type OSStatus = i32;
-pub type OSType = u32;
+pub use apple_cf::raw::{OSStatus, OSType};
 pub type UInt32 = u32;
 pub type ItemCount = u64;
 pub type ByteCount = u64;

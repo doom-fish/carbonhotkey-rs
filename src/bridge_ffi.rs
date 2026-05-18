@@ -4,8 +4,7 @@
 
 use core::ffi::c_void;
 
-pub type OSStatus = i32;
-pub type OSType = u32;
+pub use apple_cf::raw::{OSStatus, OSType};
 
 pub type KeyboardEventCallback = unsafe extern "C" fn(
     event_class: OSType,

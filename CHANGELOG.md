@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - 2026-05-18
+
+### Changed
+
+- Added `apple-cf` (`>=0.9, <0.10`) and re-exported `OSStatus` / `OSType` from `apple_cf::raw`, removing the remaining crate-local duplicates.
+
 ## [0.4.2] - 2026-05-18
 
 - Widen doom-fish-utils version bound to `<0.3` so 0.2.x resolves.

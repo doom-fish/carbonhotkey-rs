@@ -15,7 +15,6 @@ let package = Package(
     targets: [
         .target(
             name: "CarbonHotKeyBridge",
-            path: "Sources/CarbonHotKeyBridge",
-            publicHeadersPath: "include")
+            path: "Sources/CarbonHotKeyBridge")
     ]
 )

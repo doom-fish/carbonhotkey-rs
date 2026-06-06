@@ -119,12 +119,18 @@ extern "C" fn hotkey_event_callback(
     signature: u32,
     ctx: *mut c_void,
 ) {
-    let sender = unsafe { &*ctx.cast::<AsyncStreamSender<StreamHotKeyEvent>>() };
-    sender.push(StreamHotKeyEvent {
-        hotkey_id,
-        event_kind,
-        event_class,
-        signature,
+    let Some(ctx) = std::ptr::NonNull::new(ctx.cast::<AsyncStreamSender<StreamHotKeyEvent>>())
+    else {
+        return;
+    };
+    doom_fish_utils::panic_safe::catch_user_panic("hotkey_event_callback", || {
+        let sender = unsafe { ctx.as_ref() };
+        sender.push(StreamHotKeyEvent {
+            hotkey_id,
+            event_kind,
+            event_class,
+            signature,
+        });
     });
 }
 

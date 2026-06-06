@@ -111,11 +111,13 @@ unsafe extern "C" fn keyboard_callback_trampoline(
     };
 
     let callback_state = unsafe { user_data.as_ref() };
-    (callback_state.callback)(HotKeyEvent {
-        event_class,
-        event_kind,
-        signature,
-        identifier: hotkey_id,
+    doom_fish_utils::panic_safe::catch_user_panic("keyboard_callback_trampoline", || {
+        (callback_state.callback)(HotKeyEvent {
+            event_class,
+            event_kind,
+            signature,
+            identifier: hotkey_id,
+        });
     });
 }
 

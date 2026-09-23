@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use carbonhotkey::{
-    install_keyboard_handler, quit_event_loop, run_current_event_loop, EventHandler,
-    HotKeyEventKind,
+    install_keyboard_handler, quit_event_loop, run_current_event_loop, run_event_loop,
+    EventHandler, HotKeyEventKind,
 };
 
 #[test]
@@ -24,5 +24,12 @@ fn install_and_remove_handler() {
     run_current_event_loop(Duration::from_millis(5)).expect("run current event loop");
     handler.remove().expect("remove handler");
     assert_eq!(seen.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn a_quit_requested_before_the_loop_starts_is_not_lost() {
     quit_event_loop();
+    let started = std::time::Instant::now();
+    run_event_loop().expect("run event loop");
+    assert!(started.elapsed() < Duration::from_secs(1));
 }

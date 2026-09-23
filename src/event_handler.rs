@@ -228,14 +228,15 @@ pub fn run_current_event_loop(duration: Duration) -> Result<(), HotkeyError> {
 
 /// Run the current event loop until [`quit_event_loop`] is called.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `RunCurrentEventLoop` returns a non-zero `OSStatus`.
-pub fn run_event_loop() {
-    SHOULD_QUIT_EVENT_LOOP.store(false, Ordering::SeqCst);
-    while !SHOULD_QUIT_EVENT_LOOP.load(Ordering::SeqCst) {
-        run_current_event_loop(EVENT_LOOP_SLICE).expect("RunCurrentEventLoop failed");
+/// Returns [`HotkeyError::EventLoopFailed`] if `RunCurrentEventLoop` returns
+/// a non-zero `OSStatus`.
+pub fn run_event_loop() -> Result<(), HotkeyError> {
+    while !SHOULD_QUIT_EVENT_LOOP.swap(false, Ordering::SeqCst) {
+        run_current_event_loop(EVENT_LOOP_SLICE)?;
     }
+    Ok(())
 }
 
 /// Request that [`run_event_loop`] return on its next polling slice.

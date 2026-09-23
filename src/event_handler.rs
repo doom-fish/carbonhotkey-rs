@@ -157,7 +157,7 @@ impl EventHandler {
             bridge_ffi::carbonhotkey_event_handler_install(
                 keyboard_callback_trampoline,
                 callback_state.as_ptr().cast(),
-                &mut handle,
+                &raw mut handle,
             )
         };
 

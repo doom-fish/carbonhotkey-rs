@@ -192,7 +192,7 @@ where
             VENDOR_SIGNATURE,
             id,
             options.bits(),
-            &mut handle,
+            &raw mut handle,
         )
     };
 

@@ -9,7 +9,7 @@ description = "Safe Rust bindings for Carbon's RegisterEventHotKey — register 
 authors = ["Per Johansson <per@doom.fish>"]
 keywords = ["hotkey", "shortcut", "keyboard", "macos", "carbon"]
 categories = ["api-bindings", "os::macos-apis"]
-rust-version = "1.76"
+rust-version = "1.82"
 readme = "README.md"
 build = "build.rs"
 include = [
@@ -43,9 +43,9 @@ raw-ffi = []
 async = []
 
 [dependencies]
-apple-cf = { path = "../apple-cf-rs", version = ">=0.9, <0.10", default-features = false }
+apple-cf = { path = "../apple-cf-rs", version = ">=0.11, <0.12", default-features = false }
 bitflags = "2"
-doom-fish-utils = { path = "../doom-fish-utils", version = ">=0.1, <0.4" }
+doom-fish-utils = { path = "../doom-fish-utils", version = ">=0.4.1, <0.5" }
 
 [dev-dependencies]
 regex-lite = "0.1"

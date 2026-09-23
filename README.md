@@ -63,32 +63,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Async Event Streams (requires `async` feature)
 
-For async/await code, use `HotKeyEventStream` to listen to hotkey events without blocking:
+For async/await code, use `HotKeyEventStream` to receive hotkey events on another thread. Carbon only delivers them while the main thread runs its event loop, so register on the main thread, consume the stream elsewhere, and keep the main thread in `run_event_loop` (or an app run loop):
 
 ```rust,no_run
+use std::thread;
+use std::time::Duration;
+
 use carbonhotkey::async_api::HotKeyEventStream;
 use carbonhotkey::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create the stream
-    let stream = HotKeyEventStream::new(16);
+    let hotkey = register_key(KeyCode::ANSI_A, Modifier::CMD | Modifier::OPTION, |_| {})?;
+    let stream = HotKeyEventStream::new(16)?;
+    let id = hotkey.id();
 
-    // Register a hotkey
-    let hotkey = register_key(KeyCode::ANSI_A, Modifier::CMD, |_| {})?;
-
-    // Listen for events asynchronously using pollster
-    pollster::block_on(async {
-        while let Some(event) = stream.next().await {
-            if event.hotkey_id == hotkey.id() && event.is_pressed() {
-                println!("Cmd+A pressed!");
+    thread::spawn(move || {
+        pollster::block_on(async {
+            while let Some(event) = stream.next().await {
+                if event.hotkey_id == id && event.is_pressed() {
+                    println!("Cmd+Option+A pressed!");
+                }
             }
-        }
+        });
     });
+    thread::spawn(|| {
+        thread::sleep(Duration::from_secs(30));
+        quit_event_loop();
+    });
+
+    run_event_loop()?;
+    hotkey.unregister()?;
     Ok(())
 }
 ```
 
-The stream is **executor-agnostic** — works with tokio, async-std, smol, or any other async runtime. Use `pollster::block_on` if you need async in a sync context.
+The stream is **executor-agnostic** — works with tokio, async-std, smol, or any other async runtime. Use `pollster::block_on` if you need async in a sync context. Every stream receives the events of every hotkey registered through this crate; filter on `hotkey_id`.
 
 ## Key codes and modifiers
 

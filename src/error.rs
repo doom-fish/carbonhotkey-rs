@@ -17,6 +17,8 @@ pub enum HotkeyError {
     EventLoopFailed(i32),
     /// `UnregisterEventHotKey` returned non-zero.
     UnregisterFailed(i32),
+    NotMainThread,
+    InvalidArgument(String),
 }
 
 impl fmt::Display for HotkeyError {
@@ -32,6 +34,11 @@ impl fmt::Display for HotkeyError {
             }
             Self::EventLoopFailed(s) => write!(f, "RunCurrentEventLoop failed: OSStatus {s}"),
             Self::UnregisterFailed(s) => write!(f, "UnregisterEventHotKey failed: OSStatus {s}"),
+            Self::NotMainThread => write!(
+                f,
+                "Carbon hotkeys and event handlers must be registered and removed on the main thread"
+            ),
+            Self::InvalidArgument(message) => write!(f, "invalid argument: {message}"),
         }
     }
 }

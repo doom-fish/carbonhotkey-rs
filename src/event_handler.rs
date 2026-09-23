@@ -5,10 +5,12 @@ use core::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use doom_fish_utils::callback_context::CallbackContext;
+
 use crate::bridge_ffi;
 use crate::error::HotkeyError;
 
-const KEYBOARD_EVENT_CLASS: u32 = 0x6b65_7962;
+pub(crate) const KEYBOARD_EVENT_CLASS: u32 = 0x6b65_7962;
 const HOTKEY_PRESSED_KIND: u32 = 5;
 const HOTKEY_RELEASED_KIND: u32 = 6;
 const EVENT_LOOP_SLICE: Duration = Duration::from_millis(50);
@@ -85,15 +87,12 @@ impl HotKeyEvent {
 }
 
 type KeyboardCallback = Box<dyn Fn(HotKeyEvent) + Send + Sync + 'static>;
-
-struct CallbackState {
-    callback: KeyboardCallback,
-}
+type KeyboardContext = CallbackContext<KeyboardCallback>;
 
 /// Installed keyboard-event handler.
 pub struct EventHandler {
     handle: Option<NonNull<c_void>>,
-    callback_state: Option<NonNull<CallbackState>>,
+    context: KeyboardContext,
 }
 
 unsafe extern "C" fn keyboard_callback_trampoline(
@@ -102,36 +101,27 @@ unsafe extern "C" fn keyboard_callback_trampoline(
     signature: u32,
     hotkey_id: u32,
     user_data: *mut c_void,
-) {
+) -> bool {
     let Some(event_kind) = HotKeyEventKind::from_raw(event_kind) else {
-        return;
+        return false;
     };
-    let Some(user_data) = NonNull::new(user_data.cast::<CallbackState>()) else {
-        return;
+    let event = HotKeyEvent {
+        event_class,
+        event_kind,
+        signature,
+        identifier: hotkey_id,
     };
-
-    let callback_state = unsafe { user_data.as_ref() };
-    doom_fish_utils::panic_safe::catch_user_panic("keyboard_callback_trampoline", || {
-        (callback_state.callback)(HotKeyEvent {
-            event_class,
-            event_kind,
-            signature,
-            identifier: hotkey_id,
-        });
-    });
+    let _ = unsafe {
+        KeyboardContext::with(user_data, "keyboard_callback_trampoline", |callback| {
+            callback(event);
+        })
+    };
+    false
 }
 
 impl Drop for EventHandler {
     fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            unsafe {
-                let _ = bridge_ffi::carbonhotkey_event_handler_remove(handle.as_ptr());
-                bridge_ffi::carbonhotkey_event_handler_release(handle.as_ptr());
-            }
-        }
-        if let Some(callback_state) = self.callback_state.take() {
-            unsafe { drop(Box::from_raw(callback_state.as_ptr())) };
-        }
+        let _ = self.detach();
     }
 }
 
@@ -147,28 +137,31 @@ impl EventHandler {
     where
         F: Fn(HotKeyEvent) + Send + Sync + 'static,
     {
-        let callback_state = Box::new(CallbackState {
-            callback: Box::new(callback),
-        });
-        let callback_state = unsafe { NonNull::new_unchecked(Box::into_raw(callback_state)) };
-
+        if unsafe { bridge_ffi::pthread_main_np() } == 0 {
+            return Err(HotkeyError::NotMainThread);
+        }
+        let context = KeyboardContext::new(Box::new(callback));
         let mut handle = core::ptr::null_mut();
         let status = unsafe {
             bridge_ffi::carbonhotkey_event_handler_install(
-                keyboard_callback_trampoline,
-                callback_state.as_ptr().cast(),
+                Some(keyboard_callback_trampoline),
+                context.as_ptr(),
+                Some(KeyboardContext::RETAIN),
+                Some(KeyboardContext::RELEASE),
                 &raw mut handle,
             )
         };
 
         if status != 0 {
-            unsafe { drop(Box::from_raw(callback_state.as_ptr())) };
             return Err(HotkeyError::HandlerInstallFailed(status));
         }
+        let Some(handle) = NonNull::new(handle) else {
+            return Err(HotkeyError::HandlerInstallFailed(-50));
+        };
 
         Ok(Self {
-            handle: NonNull::new(handle),
-            callback_state: Some(callback_state),
+            handle: Some(handle),
+            context,
         })
     }
 
@@ -179,22 +172,19 @@ impl EventHandler {
     /// Returns [`HotkeyError::HandlerRemoveFailed`] if Carbon refuses to
     /// remove the handler.
     pub fn remove(mut self) -> Result<(), HotkeyError> {
-        let status = self.handle.take().map_or(0, |handle| {
-            let status = unsafe { bridge_ffi::carbonhotkey_event_handler_remove(handle.as_ptr()) };
-            unsafe { bridge_ffi::carbonhotkey_event_handler_release(handle.as_ptr()) };
+        match self.detach() {
+            0 => Ok(()),
+            status => Err(HotkeyError::HandlerRemoveFailed(status)),
+        }
+    }
+
+    fn detach(&mut self) -> i32 {
+        self.context.deactivate();
+        self.handle.take().map_or(0, |handle| unsafe {
+            let status = bridge_ffi::carbonhotkey_event_handler_remove(handle.as_ptr());
+            bridge_ffi::carbonhotkey_event_handler_release(handle.as_ptr());
             status
-        });
-
-        if let Some(callback_state) = self.callback_state.take() {
-            unsafe { drop(Box::from_raw(callback_state.as_ptr())) };
-        }
-
-        core::mem::forget(self);
-
-        if status != 0 {
-            return Err(HotkeyError::HandlerRemoveFailed(status));
-        }
-        Ok(())
+        })
     }
 }
 

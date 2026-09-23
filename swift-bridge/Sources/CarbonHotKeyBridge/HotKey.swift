@@ -1,4 +1,7 @@
 import Carbon
+import Foundation
+
+let carbonHotKeyDisposeDeferred: Int32 = 1
 
 final class CarbonHotKeyRegistration {
     private var hotKeyRef: EventHotKeyRef?
@@ -31,6 +34,10 @@ public func carbonhotkeyHotKeyRegister(
     _ options: UInt32,
     _ outHandle: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) -> Int32 {
+    outHandle?.pointee = nil
+    guard Thread.isMainThread else {
+        return OSStatus(paramErr)
+    }
     var hotKeyRef: EventHotKeyRef?
     let hotKeyID = EventHotKeyID(signature: OSType(signature), id: identifier)
     let status = RegisterEventHotKey(
@@ -50,6 +57,21 @@ public func carbonhotkeyHotKeyRegister(
     let registration = CarbonHotKeyRegistration(hotKeyRef: hotKeyRef, identifier: identifier)
     outHandle?.pointee = Unmanaged.passRetained(registration).toOpaque()
     return noErr
+}
+
+@_cdecl("carbonhotkey_hotkey_dispose")
+public func carbonhotkeyHotKeyDispose(_ handle: UnsafeMutableRawPointer?) -> Int32 {
+    guard let handle else {
+        return noErr
+    }
+    let registration = Unmanaged<CarbonHotKeyRegistration>.fromOpaque(handle).takeRetainedValue()
+    if Thread.isMainThread {
+        return registration.unregister()
+    }
+    DispatchQueue.main.async {
+        _ = registration.unregister()
+    }
+    return carbonHotKeyDisposeDeferred
 }
 
 @_cdecl("carbonhotkey_hotkey_unregister")

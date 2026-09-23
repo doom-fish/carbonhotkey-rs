@@ -1,4 +1,5 @@
 import Carbon
+import Foundation
 
 public typealias CarbonHotKeyKeyboardCallback = @convention(c) (
     UInt32,
@@ -6,7 +7,9 @@ public typealias CarbonHotKeyKeyboardCallback = @convention(c) (
     UInt32,
     UInt32,
     UnsafeMutableRawPointer?
-) -> Void
+) -> Bool
+
+public typealias CarbonHotKeyContextHook = @convention(c) (UnsafeMutableRawPointer?) -> Void
 
 private func carbonhotkeyKeyboardEventHandler(
     _ handlerCallRef: EventHandlerCallRef?,
@@ -16,21 +19,31 @@ private func carbonhotkeyKeyboardEventHandler(
     _ = handlerCallRef
 
     guard let userData, let event else {
-        return OSStatus(paramErr)
+        return OSStatus(eventNotHandledErr)
     }
 
     let handler = Unmanaged<CarbonHotKeyKeyboardHandler>.fromOpaque(userData).takeUnretainedValue()
-    return handler.handleEvent(event)
+    return withExtendedLifetime(handler) {
+        handler.handleEvent(event)
+    }
 }
 
 final class CarbonHotKeyKeyboardHandler {
     private var eventHandlerRef: EventHandlerRef?
     private let callback: CarbonHotKeyKeyboardCallback
-    private let callbackUserData: UnsafeMutableRawPointer?
+    private let context: UnsafeMutableRawPointer?
+    private let releaseContext: CarbonHotKeyContextHook?
 
-    init(callback: @escaping CarbonHotKeyKeyboardCallback, callbackUserData: UnsafeMutableRawPointer?) {
+    init(
+        callback: @escaping CarbonHotKeyKeyboardCallback,
+        context: UnsafeMutableRawPointer?,
+        retainContext: CarbonHotKeyContextHook?,
+        releaseContext: CarbonHotKeyContextHook?
+    ) {
         self.callback = callback
-        self.callbackUserData = callbackUserData
+        self.context = context
+        self.releaseContext = releaseContext
+        retainContext?(context)
     }
 
     func install() -> OSStatus {
@@ -70,7 +83,6 @@ final class CarbonHotKeyKeyboardHandler {
         let eventClass = UInt32(GetEventClass(event))
         let eventKind = UInt32(GetEventKind(event))
         var hotKeyID = EventHotKeyID(signature: 0, id: 0)
-        var actualSize = 0
 
         let status = withUnsafeMutablePointer(to: &hotKeyID) { hotKeyIDPointer in
             GetEventParameter(
@@ -79,43 +91,77 @@ final class CarbonHotKeyKeyboardHandler {
                 EventParamType(typeEventHotKeyID),
                 nil,
                 MemoryLayout<EventHotKeyID>.size,
-                &actualSize,
+                nil,
                 hotKeyIDPointer
             )
         }
 
         guard status == noErr else {
-            return status
+            return OSStatus(eventNotHandledErr)
         }
 
-        callback(eventClass, eventKind, UInt32(hotKeyID.signature), hotKeyID.id, callbackUserData)
-        return noErr
+        let handled = callback(eventClass, eventKind, UInt32(hotKeyID.signature), hotKeyID.id, context)
+        return handled ? noErr : OSStatus(eventNotHandledErr)
     }
 
     deinit {
         _ = remove()
+        releaseContext?(context)
     }
+}
+
+private var hotKeyDispatcher: CarbonHotKeyKeyboardHandler?
+
+@_cdecl("carbonhotkey_dispatcher_install")
+public func carbonhotkeyDispatcherInstall(_ callback: CarbonHotKeyKeyboardCallback?) -> Int32 {
+    guard let callback else {
+        return OSStatus(paramErr)
+    }
+    guard Thread.isMainThread else {
+        return OSStatus(paramErr)
+    }
+    guard hotKeyDispatcher == nil else {
+        return noErr
+    }
+    let dispatcher = CarbonHotKeyKeyboardHandler(
+        callback: callback,
+        context: nil,
+        retainContext: nil,
+        releaseContext: nil)
+    let status = dispatcher.install()
+    if status == noErr {
+        hotKeyDispatcher = dispatcher
+    }
+    return status
 }
 
 @_cdecl("carbonhotkey_event_handler_install")
 public func carbonhotkeyEventHandlerInstall(
     _ callback: CarbonHotKeyKeyboardCallback?,
-    _ userData: UnsafeMutableRawPointer?,
+    _ context: UnsafeMutableRawPointer?,
+    _ retainContext: CarbonHotKeyContextHook?,
+    _ releaseContext: CarbonHotKeyContextHook?,
     _ outHandle: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) -> Int32 {
-    guard let callback else {
-        outHandle?.pointee = nil
+    outHandle?.pointee = nil
+    guard let callback, let outHandle else {
+        return OSStatus(paramErr)
+    }
+    guard Thread.isMainThread else {
         return OSStatus(paramErr)
     }
 
-    let handler = CarbonHotKeyKeyboardHandler(callback: callback, callbackUserData: userData)
+    let handler = CarbonHotKeyKeyboardHandler(
+        callback: callback,
+        context: context,
+        retainContext: retainContext,
+        releaseContext: releaseContext)
     let status = handler.install()
     guard status == noErr else {
-        outHandle?.pointee = nil
         return status
     }
 
-    outHandle?.pointee = Unmanaged.passRetained(handler).toOpaque()
+    outHandle.pointee = Unmanaged.passRetained(handler).toOpaque()
     return noErr
 }
 

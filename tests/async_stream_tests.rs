@@ -4,14 +4,33 @@ use carbonhotkey::async_api::{HotKeyEventStream, StreamHotKeyEvent};
 
 #[test]
 fn test_stream_creation() {
-    let stream = HotKeyEventStream::new(32);
+    let stream = HotKeyEventStream::new(32).expect("stream");
     assert_eq!(stream.buffered_count(), 0);
 }
 
 #[test]
 fn test_stream_try_next_empty() {
-    let stream = HotKeyEventStream::new(32);
+    let stream = HotKeyEventStream::new(32).expect("stream");
     assert_eq!(stream.try_next(), None);
+}
+
+#[test]
+fn test_stream_rejects_zero_capacity() {
+    assert!(matches!(
+        HotKeyEventStream::new(0),
+        Err(carbonhotkey::HotkeyError::InvalidArgument(_))
+    ));
+    assert!(matches!(
+        carbonhotkey::async_api::subscribe_hotkey_stream(0),
+        Err(carbonhotkey::HotkeyError::InvalidArgument(_))
+    ));
+}
+
+#[test]
+fn test_stream_is_send_and_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<HotKeyEventStream>();
+    assert_send_sync::<carbonhotkey::Hotkey>();
 }
 
 #[test]

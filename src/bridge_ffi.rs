@@ -12,9 +12,13 @@ pub type KeyboardEventCallback = unsafe extern "C" fn(
     signature: OSType,
     hotkey_id: u32,
     user_data: *mut c_void,
-);
+) -> bool;
+
+pub type ContextHook = unsafe extern "C" fn(context: *mut c_void);
 
 extern "C" {
+    pub fn pthread_main_np() -> i32;
+
     pub fn carbonhotkey_hotkey_register(
         key_code: u32,
         modifiers: u32,
@@ -24,14 +28,19 @@ extern "C" {
         out_handle: *mut *mut c_void,
     ) -> OSStatus;
 
+    pub fn carbonhotkey_hotkey_dispose(handle: *mut c_void) -> OSStatus;
     pub fn carbonhotkey_hotkey_unregister(handle: *mut c_void) -> OSStatus;
     pub fn carbonhotkey_hotkey_id(handle: *mut c_void) -> u32;
     pub fn carbonhotkey_hotkey_retain(handle: *mut c_void) -> *mut c_void;
     pub fn carbonhotkey_hotkey_release(handle: *mut c_void);
 
+    pub fn carbonhotkey_dispatcher_install(callback: Option<KeyboardEventCallback>) -> OSStatus;
+
     pub fn carbonhotkey_event_handler_install(
-        callback: KeyboardEventCallback,
-        user_data: *mut c_void,
+        callback: Option<KeyboardEventCallback>,
+        context: *mut c_void,
+        retain_context: Option<ContextHook>,
+        release_context: Option<ContextHook>,
         out_handle: *mut *mut c_void,
     ) -> OSStatus;
 

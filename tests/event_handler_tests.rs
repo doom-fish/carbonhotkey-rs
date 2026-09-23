@@ -1,35 +1,30 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use carbonhotkey::{
     install_keyboard_handler, quit_event_loop, run_current_event_loop, run_event_loop,
-    EventHandler, HotKeyEventKind,
+    EventHandler, HotkeyError,
 };
 
 #[test]
-fn install_and_remove_handler() {
-    let seen = Arc::new(AtomicUsize::new(0));
-    let seen_in_callback = Arc::clone(&seen);
-
-    let handler: EventHandler = install_keyboard_handler(move |event| {
-        seen_in_callback.fetch_add(1, Ordering::SeqCst);
-        assert!(matches!(
-            event.event_kind(),
-            HotKeyEventKind::Pressed | HotKeyEventKind::Released
-        ));
+fn installing_a_handler_off_the_main_thread_is_rejected() {
+    let outcome = thread::spawn(|| {
+        let installed = install_keyboard_handler(|_| {}).map(|_| ());
+        let direct = EventHandler::install(|_| {}).map(|_| ());
+        (installed, direct)
     })
-    .expect("install handler");
-
-    run_current_event_loop(Duration::from_millis(5)).expect("run current event loop");
-    handler.remove().expect("remove handler");
-    assert_eq!(seen.load(Ordering::SeqCst), 0);
+    .join()
+    .expect("handler thread");
+    assert_eq!(outcome.0, Err(HotkeyError::NotMainThread));
+    assert_eq!(outcome.1, Err(HotkeyError::NotMainThread));
 }
 
 #[test]
-fn a_quit_requested_before_the_loop_starts_is_not_lost() {
+fn event_loop_slices_and_early_quits_return() {
+    run_current_event_loop(Duration::from_millis(5)).expect("run current event loop");
+
     quit_event_loop();
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     run_event_loop().expect("run event loop");
     assert!(started.elapsed() < Duration::from_secs(1));
 }

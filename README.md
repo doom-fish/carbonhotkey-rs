@@ -146,14 +146,14 @@ let hotkey = register_key_with_options(
 
 ```toml
 [dependencies]
-carbonhotkey = { version = "0.4", default-features = false }
+carbonhotkey = { version = "0.6", default-features = false }
 ```
 
 Enable the legacy raw Carbon FFI surface when you need it:
 
 ```toml
 [dependencies]
-carbonhotkey = { version = "0.4", features = ["raw-ffi"] }
+carbonhotkey = { version = "0.6", features = ["raw-ffi"] }
 ```
 
 ## Examples

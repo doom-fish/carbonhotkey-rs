@@ -22,8 +22,8 @@ Audited headers:
 | CarbonEvents.h | `kEventHotKeyNoOptions` | ✅ implemented | `HotKeyOptions::NO_OPTIONS`, `ffi::kEventHotKeyNoOptions` | named mirror of Carbon's default registration mode |
 | CarbonEvents.h | `kEventHotKeyExclusive` | ✅ implemented | `HotKeyOptions::EXCLUSIVE`, `ffi::kEventHotKeyExclusive` | exposed in safe and raw surfaces |
 | CarbonEvents.h | `eventHotKeyExistsErr` | ✅ implemented | `HotkeyError::AlreadyRegistered`, `ffi::eventHotKeyExistsErr` | maps exclusive conflicts to a Rust enum |
-| CarbonEvents.h | `RegisterEventHotKey` | ✅ implemented | `register`, `register_key`, `register_with_options`, `register_key_with_options` | invoked via the Swift bridge |
-| CarbonEvents.h | `UnregisterEventHotKey` | ✅ implemented | `Hotkey::unregister`, `Drop` | released through the Swift bridge |
+| CarbonEvents.h | `RegisterEventHotKey` | ✅ implemented | `register`, `register_key`, `register_with_options`, `register_key_with_options` | invoked via the Swift bridge; main thread only |
+| CarbonEvents.h | `UnregisterEventHotKey` | ✅ implemented | `Hotkey::unregister`, `Drop` | runs on the main thread; a drop elsewhere schedules it on the main queue |
 
 ## EventHandler
 
@@ -40,12 +40,12 @@ Audited headers:
 | CarbonEvents.h | `kEventParamDirectObject` | ✅ implemented | raw constants, bridge internals | parameter used to fetch `EventHotKeyID` |
 | CarbonEvents.h | `typeEventHotKeyID` | ✅ implemented | raw constants, bridge internals | expected parameter type |
 | CarbonEvents.h | `GetApplicationEventTarget` | ✅ implemented | bridge internals, raw FFI | installs both the handler and hotkeys on the app target |
-| CarbonEventsCore.h | `InstallEventHandler` | ✅ implemented | `EventHandler::install`, `install_keyboard_handler` | keyboard handler bridge |
+| CarbonEventsCore.h | `InstallEventHandler` | ✅ implemented | `EventHandler::install`, `install_keyboard_handler` | observer handlers, plus the crate's one shared hotkey dispatcher; main thread only |
 | CarbonEventsCore.h | `RemoveEventHandler` | ✅ implemented | `EventHandler::remove`, `Drop` | handler cleanup |
 | CarbonEventsCore.h | `GetEventClass` | ✅ implemented | bridge internals | decodes `HotKeyEvent::event_class()` |
 | CarbonEventsCore.h | `GetEventKind` | ✅ implemented | bridge internals | decodes `HotKeyEventKind` |
 | CarbonEventsCore.h | `GetEventParameter` | ✅ implemented | bridge internals | extracts `EventHotKeyID` from callbacks |
-| CarbonEventsCore.h | `RunCurrentEventLoop` | ✅ implemented | `run_current_event_loop`, `run_event_loop` | polling event loop for headless-safe examples/tests |
+| CarbonEventsCore.h | `RunCurrentEventLoop` | ✅ implemented | `run_current_event_loop`, `run_event_loop` | polling event loop; hotkey events arrive only through the main thread's loop |
 | CarbonEvents.h | `RunApplicationEventLoop` | ⏭️ skipped | — | 32-bit-only in the headers; safe API polls `RunCurrentEventLoop` instead |
 | CarbonEvents.h | `QuitApplicationEventLoop` | ⏭️ skipped | — | 32-bit-only in the headers; safe API uses a Rust-side quit flag |
 | CarbonEvents.h | `InstallApplicationEventHandler` | ⏭️ skipped | — | convenience macro over `InstallEventHandler` once the bridge already targets `GetApplicationEventTarget()` |

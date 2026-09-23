@@ -27,7 +27,7 @@ Carbon's `RegisterEventHotKey` is still the only public macOS API for global hot
 
 Carbon's hotkey and event-handler functions are not thread safe, and Carbon delivers hotkey events only while the main thread runs its event loop.
 
-- Call `register*`, `install_keyboard_handler` and `EventHandler::install` on the main thread; elsewhere they return `HotkeyError::NotMainThread`. Run `run_event_loop` or `run_current_event_loop` on the main thread, or let an AppKit run loop run there, to receive events.
+- Call `register*`, `install_keyboard_handler` and `EventHandler::install` on the main thread; elsewhere they return `HotkeyError::NotMainThread`. Run `run_event_loop` or `run_current_event_loop` on the main thread, or let an application run loop run there, to receive events.
 - `Hotkey` is `Send` and `Sync`. Dropping it on another thread stops its callback at once and schedules the Carbon unregistration on the main queue, which runs the next time the main thread services it; `Hotkey::unregister` returns `HotkeyError::NotMainThread` in that case. `EventHandler` stays on the main thread.
 - All hotkeys registered through this crate share one Carbon event handler. It claims only events whose signature and ID belong to a hotkey registered here, delivers each to that hotkey's callback and to every `HotKeyEventStream`, and returns `eventNotHandledErr` for everything else, so handlers installed by other code keep receiving their hotkeys. Handlers from `install_keyboard_handler` observe events and never consume them.
 - `quit_event_loop` makes the current or the next `run_event_loop` return, even when it is called before the loop starts.

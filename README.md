@@ -80,9 +80,11 @@ For async/await code, use `HotKeyEventStream` to receive hotkey events on anothe
 use std::thread;
 use std::time::Duration;
 
+# #[cfg(feature = "async")]
 use carbonhotkey::async_api::HotKeyEventStream;
 use carbonhotkey::prelude::*;
 
+# #[cfg(feature = "async")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let hotkey = register_key(KeyCode::ANSI_A, Modifier::CMD | Modifier::OPTION, |_| {})?;
     let stream = HotKeyEventStream::new(16)?;
@@ -106,6 +108,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     hotkey.unregister()?;
     Ok(())
 }
+# #[cfg(not(feature = "async"))]
+# fn main() {}
 ```
 
 The stream is **executor-agnostic** — works with tokio, async-std, smol, or any other async runtime. Use `pollster::block_on` if you need async in a sync context. Every stream receives the events of every hotkey registered through this crate; filter on `hotkey_id`.

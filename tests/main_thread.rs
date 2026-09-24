@@ -13,6 +13,7 @@ const PARAM_DIRECT_OBJECT: u32 = 0x2d2d_2d2d;
 const TYPE_EVENT_HOTKEY_ID: u32 = 0x686b_6964;
 const NO_ERR: i32 = 0;
 const EVENT_NOT_HANDLED_ERR: i32 = -9874;
+#[cfg(feature = "async")]
 const CRATE_SIGNATURE: u32 = 0x646f_6f6d;
 const FOREIGN_SIGNATURE: u32 = u32::from_be_bytes(*b"othr");
 const GLOBAL_HOTKEY_OPT_IN: &str = "CARBONHOTKEY_TEST_GLOBAL_HOTKEYS";
@@ -256,7 +257,7 @@ fn global_hotkeys_register_dispatch_and_unregister() {
 
 fn main() {
     assert_ne!(unsafe { pthread_main_np() }, 0);
-    let mut tests: Vec<(&str, fn())> = vec![
+    let tests: &[(&str, fn())] = &[
         (
             "observers_never_consume_hotkey_events",
             observers_never_consume_hotkey_events,
@@ -277,14 +278,14 @@ fn main() {
             "the_event_loop_services_main_queue_work",
             the_event_loop_services_main_queue_work,
         ),
+        #[cfg(feature = "async")]
+        (
+            "the_dispatcher_passes_on_hotkeys_it_does_not_own",
+            the_dispatcher_passes_on_hotkeys_it_does_not_own,
+        ),
     ];
-    #[cfg(feature = "async")]
-    tests.push((
-        "the_dispatcher_passes_on_hotkeys_it_does_not_own",
-        the_dispatcher_passes_on_hotkeys_it_does_not_own,
-    ));
 
-    for (name, test) in &tests {
+    for (name, test) in tests {
         test();
         println!("test {name} ... ok");
     }

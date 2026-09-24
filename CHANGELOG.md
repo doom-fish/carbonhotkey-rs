@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** `run_event_loop` returns `Result<(), HotkeyError>` instead of panicking when `RunCurrentEventLoop` fails.
 - **BREAKING:** handlers from `install_keyboard_handler` observe hotkey events and never consume them.
 - **BREAKING:** requires `apple-cf` 0.11 (`>=0.11, <0.12`) and `doom-fish-utils` 0.4.1 (`>=0.4.1, <0.5`); `rust-version` is 1.82.
+- **BREAKING:** the `raw-ffi` feature is off by default; enable it to keep using the raw declarations in `carbonhotkey::ffi`. It stayed a default feature only for backward compatibility, and the safe API never needed it.
 
 ### Added
 

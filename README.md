@@ -10,7 +10,7 @@ The safe surface is split into five logical areas:
 - `modifier_flags` — `ModifierFlags` / `Modifier` for Carbon modifier masks
 - `async_api` (feature-gated behind `async`) — executor-agnostic async streams for hotkey events via `BoundedAsyncStream<T>`
 
-Raw Carbon FFI remains available behind the `raw-ffi` feature. It stays enabled by default for backward compatibility; use `default-features = false` if you only want the safe Swift-backed API.
+Raw Carbon FFI is available behind the `raw-ffi` feature, which is off by default; the safe Swift-backed API doesn't need it.
 
 Requires macOS 10.13 or later.
 
@@ -148,12 +148,7 @@ let hotkey = register_key_with_options(
 
 ## Raw FFI feature
 
-```toml
-[dependencies]
-carbonhotkey = { version = "0.6", default-features = false }
-```
-
-Enable the legacy raw Carbon FFI surface when you need it:
+The raw Carbon declarations in `carbonhotkey::ffi` are off by default. Enable them when you need them:
 
 ```toml
 [dependencies]

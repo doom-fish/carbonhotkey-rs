@@ -38,7 +38,7 @@ name = "carbonhotkey"
 crate-type = ["lib"]
 
 [features]
-default = ["raw-ffi"]
+default = []
 raw-ffi = []
 async = []
 

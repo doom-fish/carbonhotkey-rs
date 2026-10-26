@@ -115,6 +115,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The safe API now talks to Carbon through the Swift bridge instead of direct raw FFI calls.
 - Raw Carbon FFI is now gated behind the `raw-ffi` feature (still enabled by default for backward compatibility).
 
+## [0.2.0] - 2026-05-16
+
+### Added
+
+- Add `Hotkey::unregister()` and `Hotkey::id()`.
+
 ## [0.1.0] - Initial release
 
 ### Added
